@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/zabbibot-tutor/static/css/main.1ae62358.css",
-    "main.js": "/zabbibot-tutor/static/js/main.9ed61ac2.js",
+    "main.css": "/zabbibot-tutor/static/css/main.ed30f7fc.css",
+    "main.js": "/zabbibot-tutor/static/js/main.2749989a.js",
     "static/js/453.506322c4.chunk.js": "/zabbibot-tutor/static/js/453.506322c4.chunk.js",
     "index.html": "/zabbibot-tutor/index.html",
-    "main.1ae62358.css.map": "/zabbibot-tutor/static/css/main.1ae62358.css.map",
-    "main.9ed61ac2.js.map": "/zabbibot-tutor/static/js/main.9ed61ac2.js.map",
+    "main.ed30f7fc.css.map": "/zabbibot-tutor/static/css/main.ed30f7fc.css.map",
+    "main.2749989a.js.map": "/zabbibot-tutor/static/js/main.2749989a.js.map",
     "453.506322c4.chunk.js.map": "/zabbibot-tutor/static/js/453.506322c4.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.1ae62358.css",
-    "static/js/main.9ed61ac2.js"
+    "static/css/main.ed30f7fc.css",
+    "static/js/main.2749989a.js"
   ]
 }
