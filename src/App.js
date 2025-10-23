@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Brain, Send, RotateCcw, Trophy, Zap, Target, Sparkles, Code, Cpu, Flame, Rocket, Wand2, GitBranch, Search, BookOpen, Wrench, Shield, TrendingUp, Lightbulb, Award, MessageSquare, FileCode, Activity } from 'lucide-react';
+import { Brain, Send, RotateCcw, Trophy, Zap, Sparkles, Code, Search, Rocket, Wand2, TrendingUp, Lightbulb, Award, MessageSquare, Activity, Settings, Key, CheckCircle, XCircle } from 'lucide-react';
 
 const ZabbiBotTutor = () => {
   const [messages, setMessages] = useState([]);
@@ -9,51 +9,137 @@ const ZabbiBotTutor = () => {
   const [streak, setStreak] = useState(1);
   const [userName, setUserName] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [showApiConfig, setShowApiConfig] = useState(false);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('groq_api_key') || '');
+  const [apiMode, setApiMode] = useState(localStorage.getItem('groq_api_key') ? 'ai' : 'embedded');
   
-  // Super Modos
-  const [superMode, setSuperMode] = useState(null); // 'ai-chat', 'code-analyzer', 'simulator', 'script-gen', 'troubleshoot', 'mentor', 'architect'
+  const [superMode, setSuperMode] = useState(null);
   
   const [learningProfile, setLearningProfile] = useState({
     style: null,
     personality: null,
     focusLevel: 100,
     energy: 100,
-    frustrationLevel: 0,
-    successStreak: 0,
-    preferredPace: 'medium',
     motivationType: null,
   });
   
   const [sessionData, setSessionData] = useState({
     startTime: Date.now(),
     interactions: 0,
-    correctAnswers: 0,
-    incorrectAnswers: 0,
-    pomodoroCount: 0,
-    lastBreakTime: Date.now(),
     aiCallsUsed: 0,
   });
 
   const [conversationHistory, setConversationHistory] = useState([]);
-  const [currentTool, setCurrentTool] = useState(null);
   const [userLevel, setUserLevel] = useState(null);
-  const [lastInteractionTime, setLastInteractionTime] = useState(Date.now());
   const messagesEndRef = useRef(null);
 
+  // Base de conhecimento embutida
+  const knowledgeBase = {
+    zabbix: {
+      definicao: "Zabbix é uma solução OPEN SOURCE de monitoramento empresarial para redes e aplicações. Monitora servidores, VMs, redes, cloud e serviços. Coleta métricas, detecta problemas e alerta equipes em tempo real!",
+      conceitos: {
+        host: "HOST é qualquer dispositivo/sistema que você quer monitorar. Pode ser: servidor Linux/Windows, switch, roteador, impressora, container Docker, VM, até IoT! É o 'QUEM' você monitora.",
+        item: "ITEM é a métrica específica que você coleta de um host. Exemplos: CPU usage, RAM livre, espaço em disco, temperatura, latência de rede. É o 'O QUÊ' você quer saber.",
+        trigger: "TRIGGER é a condição que define quando alertar. Exemplo: 'Se CPU > 90% por 5 minutos, ALERTA!'. É o 'QUANDO' você deve se preocupar.",
+        action: "ACTION é o que fazer quando trigger dispara. Pode enviar email, SMS, executar script, reiniciar serviço. É o 'O QUE FAZER' quando há problema.",
+        template: "TEMPLATE é um conjunto reutilizável de items, triggers e graphs. Crie uma vez, aplique em vários hosts! É como receita de bolo - use quantas vezes quiser!"
+      },
+      instalacao: "1) Atualize sistema: sudo apt update && sudo apt upgrade -y\n2) Adicione repo Zabbix: wget https://repo.zabbix.com/zabbix/6.4/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.4-1+ubuntu22.04_all.deb && sudo dpkg -i zabbix-release_6.4-1+ubuntu22.04_all.deb\n3) Instale: sudo apt update && sudo apt install zabbix-server-mysql zabbix-frontend-php zabbix-agent\n4) Configure database e inicie!",
+      troubleshooting: {
+        "cpu alta": "1) Verifique processos: top ou htop\n2) Identifique processo problemático\n3) Analise logs do processo\n4) Considere: restart, otimização, ou upgrade de hardware\n5) Configure trigger no Zabbix para alertar antes de 100%",
+        "agente offline": "1) Verifique se serviço está rodando: systemctl status zabbix-agent\n2) Teste conectividade: telnet <server> 10050\n3) Verifique firewall: sudo ufw status\n4) Confira logs: tail -f /var/log/zabbix/zabbix_agentd.log\n5) Valide config: /etc/zabbix/zabbix_agentd.conf",
+        "dados não coletam": "1) Verifique se item está habilitado\n2) Confirme que host está ativo\n3) Teste item manualmente: zabbix_get -s <host> -k <key>\n4) Verifique permissões\n5) Analise logs do servidor"
+      }
+    },
+    grafana: {
+      definicao: "Grafana é uma plataforma OPEN SOURCE de analytics e visualização. Transforma dados brutos em dashboards LINDOS e interativos! Conecta com Zabbix, Prometheus, MySQL, PostgreSQL e 100+ datasources!",
+      conceitos: {
+        dashboard: "DASHBOARD é uma coleção de painéis (panels) que exibem dados visualmente. É seu 'centro de comando' com gráficos, tabelas, gauges mostrando métricas em tempo real!",
+        panel: "PANEL é um componente individual do dashboard. Pode ser: gráfico de linha, gauge, stat, tabela, heatmap. Cada panel mostra uma métrica específica.",
+        datasource: "DATASOURCE é a origem dos dados. Pode ser: Zabbix, Prometheus, MySQL, InfluxDB, Elasticsearch. Grafana busca dados de lá e exibe nos dashboards.",
+        query: "QUERY é a pergunta que você faz ao datasource. Exemplo: 'Me dê CPU dos últimos 30 minutos' ou 'Mostre requests/segundo agora'. Usa linguagem específica do datasource.",
+        variable: "VARIABLE deixa dashboard dinâmico! Em vez de criar dashboard para cada servidor, crie UMA variável $servidor e selecione qual ver. Reutilização máxima!"
+      },
+      instalacao: "1) Adicione repo: sudo wget -q -O /usr/share/keyrings/grafana.key https://apt.grafana.com/gpg.key\n2) Echo repo: echo 'deb [signed-by=/usr/share/keyrings/grafana.key] https://apt.grafana.com stable main' | sudo tee /etc/apt/sources.list.d/grafana.list\n3) Instale: sudo apt update && sudo apt install grafana\n4) Inicie: sudo systemctl start grafana-server\n5) Acesse: http://localhost:3000 (user: admin, pass: admin)"
+    }
+  };
+
+  const scriptTemplates = {
+    "monitor docker": `#!/bin/bash
+# Monitor Docker Containers
+# Autor: ZabbiBot 3.0
+
+# Verifica se Docker está rodando
+if ! systemctl is-active --quiet docker; then
+    echo "Docker não está rodando!"
+    exit 1
+fi
+
+# Lista containers e status
+echo "=== CONTAINERS ATIVOS ==="
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.CPUPerc}}\t{{.MemPerc}}"
+
+# Alerta se algum container parou
+STOPPED=$(docker ps -a --filter "status=exited" --format "{{.Names}}")
+if [ ! -z "$STOPPED" ]; then
+    echo "⚠️  ALERTA: Containers parados: $STOPPED"
+fi`,
+    
+    "check nginx": `#!/bin/bash
+# Verifica e reinicia Nginx se necessário
+# Autor: ZabbiBot 3.0
+
+SERVICE="nginx"
+if systemctl is-active --quiet $SERVICE; then
+    echo "✅ $SERVICE está rodando"
+    # Testa config
+    nginx -t 2>&1
+else
+    echo "❌ $SERVICE parado! Reiniciando..."
+    systemctl start $SERVICE
+    if systemctl is-active --quiet $SERVICE; then
+        echo "✅ $SERVICE reiniciado com sucesso!"
+    else
+        echo "🚨 FALHA ao reiniciar $SERVICE!"
+        exit 1
+    fi
+fi`,
+
+    "disk space alert": `#!/bin/bash
+# Alerta de espaço em disco
+# Autor: ZabbiBot 3.0
+
+THRESHOLD=80
+
+df -H | grep -vE '^Filesystem|tmpfs|cdrom' | awk '{ print $5 " " $1 }' | while read output;
+do
+  usage=$(echo $output | awk '{ print $1}' | cut -d'%' -f1)
+  partition=$(echo $output | awk '{ print $2 }')
+  
+  if [ $usage -ge $THRESHOLD ]; then
+    echo "🚨 ALERTA: Partição $partition está em ${usage}%!"
+  else
+    echo "✅ $partition: ${usage}% (OK)"
+  fi
+done`
+  };
+
   useEffect(() => {
-    addBotMessage(`🦸‍♂️ **ZabbiBot 3.0 - SUPER IA TUTOR**
+    addBotMessage(`🦸‍♂️ **ZabbiBot 3.0 - Sistema Híbrido**
 
-Eu não sou um tutor comum. Sou uma **IA AVANÇADA** com super poderes:
+${apiMode === 'ai' ? '🤖 **MODO IA ATIVADO!**' : '🧠 **MODO INTELIGENTE EMBUTIDO**'}
 
-🤖 **IA Conversacional** - Converso sobre QUALQUER dúvida
-🔍 **Analisador de Código** - Analiso configs e scripts
-🎮 **Simulador** - Crio cenários reais para treinar
-🛠️ **Gerador de Scripts** - Crio código personalizado
-🐛 **Troubleshooter** - Resolvo problemas reais
-🧙 **Mentor Socrático** - Te guio com perguntas inteligentes
-🏗️ **Arquiteto** - Desenho infraestruturas completas
+Eu tenho:
+${apiMode === 'ai' ? '✅ IA Real conectada (Groq)' : '✅ Base de conhecimento completa'}
+✅ Análise de código
+✅ Gerador de scripts
+✅ Troubleshooting
+✅ Simulador de cenários
+✅ Tutoriais interativos
 
-Mas primeiro... **qual seu nome?** 😊`, 0);
+${apiMode === 'embedded' ? '💡 **Dica:** Quer respostas ainda melhores? Configure sua API key gratuita no ícone ⚙️!' : ''}
+
+**Qual seu nome?** 😊`, 0);
   }, []);
 
   useEffect(() => {
@@ -65,8 +151,7 @@ Mas primeiro... **qual seu nome?** 😊`, 0);
       setMessages(prev => [...prev, {
         type: 'bot',
         content,
-        timestamp: new Date(),
-        mood: getBotMood()
+        timestamp: new Date()
       }]);
     }, delay);
   };
@@ -82,62 +167,61 @@ Mas primeiro... **qual seu nome?** 😊`, 0);
 
   const addXP = (amount, reason = '') => {
     setXp(prev => prev + amount);
-    setLearningProfile(prev => ({
-      ...prev,
-      successStreak: prev.successStreak + 1,
-      frustrationLevel: Math.max(0, prev.frustrationLevel - 10)
-    }));
     addSystemMessage(`✨ +${amount} XP ${reason ? `- ${reason}` : ''}! 🔥`, 'success');
   };
 
-  const getBotMood = () => {
-    const { focusLevel, energy, frustrationLevel, successStreak } = learningProfile;
-    if (frustrationLevel > 60) return 'supportive';
-    if (energy < 40) return 'energetic';
-    if (successStreak > 3) return 'challenging';
-    if (focusLevel > 80 && energy > 70) return 'intense';
-    return 'balanced';
+  // Sistema híbrido de resposta
+  const getSmartResponse = async (userQuestion, context = '') => {
+    // Se tem API key, usa IA
+    if (apiMode === 'ai' && apiKey) {
+      return await callGroqAPI(userQuestion, context);
+    }
+    
+    // Senão, usa sistema embutido inteligente
+    return getEmbeddedResponse(userQuestion, context);
   };
 
-  // SUPER PODER 1: IA Conversacional com Claude API
-  const callClaudeAI = async (userQuestion, context = '') => {
+  // IA Real com Groq API (gratuita e sem CORS!)
+  const callGroqAPI = async (userQuestion, context = '') => {
     setIsAiThinking(true);
     setSessionData(prev => ({ ...prev, aiCallsUsed: prev.aiCallsUsed + 1 }));
     
     try {
-      const systemPrompt = `Você é o ZabbiBot 3.0, um tutor especialista em Zabbix e Grafana com formação em pedagogia e psicologia educacional.
+      const systemPrompt = `Você é o ZabbiBot 3.0, tutor especialista em Zabbix e Grafana.
 
 Perfil do aluno:
 - Nome: ${userName}
 - Nível: ${userLevel}
 - Estilo: ${learningProfile.style}
 - Personalidade: ${learningProfile.personality}
-- Motivação: ${learningProfile.motivationType}
 
-Contexto: ${context}
+Seja divertido, use emojis, explique claramente e motive o aluno!`;
 
-Seja: divertido, use emojis, explique de forma clara, adapte ao perfil do aluno. Use analogias e exemplos práticos. Seja motivador!`;
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
+          model: "llama-3.3-70b-versatile",
           messages: [
+            { role: "system", content: systemPrompt },
             ...conversationHistory,
             { role: "user", content: userQuestion }
           ],
+          temperature: 0.7,
+          max_tokens: 1000
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
       const data = await response.json();
-      const aiResponse = data.content[0].text;
+      const aiResponse = data.choices[0].message.content;
       
-      // Atualiza histórico
       setConversationHistory(prev => [
         ...prev,
         { role: "user", content: userQuestion },
@@ -149,282 +233,152 @@ Seja: divertido, use emojis, explique de forma clara, adapte ao perfil do aluno.
       
     } catch (error) {
       setIsAiThinking(false);
-      return `❌ Ops! Erro ao conectar com a IA: ${error.message}\n\nMas não se preocupe, ainda posso te ajudar de outras formas! 💪`;
+      return `❌ Erro na API: ${error.message}\n\n💡 Verifique sua API key ou use modo embutido!\n\n(Clique em ⚙️ para configurar)`;
     }
   };
 
-  // SUPER PODER 2: Gerador Dinâmico de Tutoriais
-  const generateTutorial = async (topic) => {
-    const prompt = `Crie um tutorial COMPLETO e PRÁTICO sobre: "${topic}"
-
-Inclua:
-1. Introdução rápida (por que é importante)
-2. Pré-requisitos
-3. Passo a passo com comandos
-4. Exemplos práticos
-5. Dicas pro
-6. Troubleshooting comum
-
-Use formato markdown, comandos em blocos de código, e seja MUITO prático!`;
-
-    return await callClaudeAI(prompt, `Tutorial solicitado: ${topic}`);
-  };
-
-  // SUPER PODER 3: Analisador de Código
-  const analyzeCode = async (code, type = 'config') => {
-    const prompt = `Analise este ${type} de Zabbix/Grafana:
-
-\`\`\`
-${code}
-\`\`\`
-
-Forneça:
-1. 🎯 Resumo do que faz
-2. ✅ Pontos positivos
-3. ⚠️ Problemas/Melhorias
-4. 💡 Sugestões otimizadas
-5. 🔒 Considerações de segurança
-
-Seja específico e prático!`;
-
-    return await callClaudeAI(prompt, `Análise de ${type}`);
-  };
-
-  // SUPER PODER 4: Simulador Interativo
-  const createScenario = async (difficulty = 'medium') => {
-    const levels = {
-      easy: 'iniciante',
-      medium: 'intermediário',
-      hard: 'avançado'
-    };
+  // Sistema inteligente embutido
+  const getEmbeddedResponse = (userQuestion, context = '') => {
+    const q = userQuestion.toLowerCase();
     
-    const prompt = `Crie um cenário REALISTA de problema de monitoramento para nível ${levels[difficulty]}:
-
-Inclua:
-1. 🎬 Situação (descrição do problema)
-2. 📊 Métricas observadas
-3. ❓ Pergunta: "O que você faria?"
-4. 💡 Dicas (opcional)
-
-Seja específico com números reais! Exemplo: "CPU em 95%, RAM 87%, load average 8.5"`;
-
-    return await callClaudeAI(prompt, 'Simulação de cenário');
+    // Detecção inteligente de tópicos
+    if (q.includes('zabbix') && (q.includes('o que') || q.includes('oque') || q.includes('que é') || q.includes('define'))) {
+      return `🔵 **O QUE É ZABBIX?**\n\n${knowledgeBase.zabbix.definicao}\n\n**Por que usar?**\n✅ Open source e gratuito\n✅ Monitora TUDO\n✅ Escalável (10 a 100.000+ devices)\n✅ Interface web intuitiva\n✅ Alertas inteligentes\n\n**Quer saber mais?** Pergunte sobre: host, item, trigger, action, template!`;
+    }
+    
+    if (q.includes('grafana') && (q.includes('o que') || q.includes('oque') || q.includes('que é') || q.includes('define'))) {
+      return `🟣 **O QUE É GRAFANA?**\n\n${knowledgeBase.grafana.definicao}\n\n**Por que usar?**\n✅ Dashboards LINDOS\n✅ 100+ datasources\n✅ Alerting integrado\n✅ Mobile-friendly\n✅ Plugins customizados\n\n**Quer saber mais?** Pergunte sobre: dashboard, panel, query, variable!`;
+    }
+    
+    // Conceitos
+    if (q.includes('host')) {
+      return `🖥️ **HOST NO ZABBIX:**\n\n${knowledgeBase.zabbix.conceitos.host}\n\n**Exemplos práticos:**\n• Web-Server-01 (Linux)\n• DB-Prod-MySQL (banco)\n• Switch-Core-01 (rede)\n• Docker-Host (containers)\n\n**Analogia:** Host é como contato na agenda - você precisa "cadastrar" quem vai monitorar!`;
+    }
+    
+    if (q.includes('item')) {
+      return `📊 **ITEM NO ZABBIX:**\n\n${knowledgeBase.zabbix.conceitos.item}\n\n**Exemplos de keys:**\n• system.cpu.util - CPU usage\n• vm.memory.size[available] - RAM livre\n• vfs.fs.size[/,used] - Disco usado\n• net.if.in[eth0] - Tráfego entrada\n\n**Dica:** Items são coletados periodicamente (ex: a cada 60 segundos)!`;
+    }
+    
+    if (q.includes('trigger')) {
+      return `🚨 **TRIGGER NO ZABBIX:**\n\n${knowledgeBase.zabbix.conceitos.trigger}\n\n**Exemplo prático:**\n\`\`\`\n{Host:system.cpu.util.avg(5m)}>90\n\`\`\`\nLê-se: "Se CPU média dos últimos 5min > 90%"\n\n**Severidades:**\n🔵 Not classified\n🟢 Information\n🟡 Warning\n🟠 Average\n🔴 High\n🔥 Disaster`;
+    }
+    
+    if (q.includes('action')) {
+      return `📧 **ACTION NO ZABBIX:**\n\n${knowledgeBase.zabbix.conceitos.action}\n\n**Tipos de ação:**\n1. **Send message** - Email/SMS\n2. **Remote command** - Executa script\n3. **Add/Remove host** - Automação\n\n**Exemplo:**\nTrigger: "Nginx down"\nAction: Email + restart nginx remotamente!\n\n**Dica:** Configure escalations para alertas críticos!`;
+    }
+    
+    if (q.includes('template')) {
+      return `📋 **TEMPLATE NO ZABBIX:**\n\n${knowledgeBase.zabbix.conceitos.template}\n\n**Templates populares:**\n• Linux by Zabbix agent\n• Windows by Zabbix agent\n• MySQL by Zabbix agent\n• Docker by Zabbix agent\n• Nginx by HTTP\n\n**Como usar:**\n1. Crie/Importe template\n2. Aplique em hosts\n3. Personalize se necessário\n\n**Pro tip:** Templates community no Zabbix Share!`;
+    }
+    
+    if (q.includes('dashboard') && q.includes('grafana')) {
+      return `📊 **DASHBOARD NO GRAFANA:**\n\n${knowledgeBase.grafana.conceitos.dashboard}\n\n**Boas práticas:**\n✅ Organize por função (Overview, Details, Troubleshoot)\n✅ Use cores consistentes\n✅ Menos é mais (4-8 panels ideal)\n✅ Conte uma história com os dados\n✅ Mobile-first thinking\n\n**Templates prontos:** grafana.com/dashboards`;
+    }
+    
+    // Instalação
+    if ((q.includes('instalar') || q.includes('instalação') || q.includes('install')) && q.includes('zabbix')) {
+      return `⚡ **INSTALAÇÃO ZABBIX (Ubuntu):**\n\n${knowledgeBase.zabbix.instalacao}\n\n**Pós-instalação:**\n5) Acesse: http://seu-ip/zabbix\n6) Configure database\n7) Login: Admin / zabbix\n8) MUDE A SENHA!\n\n**Dica:** Use Docker para testes: docker run --name zabbix zabbix/zabbix-server-mysql`;
+    }
+    
+    if ((q.includes('instalar') || q.includes('instalação') || q.includes('install')) && q.includes('grafana')) {
+      return `📊 **INSTALAÇÃO GRAFANA:**\n\n${knowledgeBase.grafana.instalacao}\n\n**Próximos passos:**\n1. Adicione Zabbix como datasource\n2. Importe dashboard\n3. Configure alertas\n4. Customize!\n\n**Plugin Zabbix:**\ngrafana-cli plugins install alexanderzobnin-zabbix-app`;
+    }
+    
+    // Troubleshooting
+    if (q.includes('cpu') && (q.includes('alta') || q.includes('alto') || q.includes('100'))) {
+      return `🔧 **TROUBLESHOOT: CPU ALTA**\n\n${knowledgeBase.zabbix.troubleshooting["cpu alta"]}\n\n**Comandos úteis:**\n\`\`\`bash\ntop -o %CPU\nps aux --sort=-%cpu | head\n\`\`\`\n\n**Prevenção:**\n• Configure trigger para 80% (warning)\n• Configure trigger para 95% (critical)\n• Use gráficos para ver tendência`;
+    }
+    
+    if (q.includes('agente') && (q.includes('offline') || q.includes('down') || q.includes('não conecta'))) {
+      return `🔧 **TROUBLESHOOT: AGENTE OFFLINE**\n\n${knowledgeBase.zabbix.troubleshooting["agente offline"]}\n\n**Checklist rápido:**\n☐ Serviço rodando?\n☐ Porta 10050 aberta?\n☐ Server configurado no agentd.conf?\n☐ Firewall liberado?\n☐ Hostname correto?\n\n**Teste final:**\ntelnet <zabbix-server> 10050`;
+    }
+    
+    // Respostas genéricas inteligentes
+    if (q.includes('diferença') || q.includes('diferenca')) {
+      if (q.includes('zabbix') && q.includes('grafana')) {
+        return `🆚 **ZABBIX vs GRAFANA:**\n\n**ZABBIX:**\n✅ Coleta dados\n✅ Detecta problemas\n✅ Alerta equipes\n✅ Solução completa\n\n**GRAFANA:**\n✅ Visualiza dados\n✅ Dashboards bonitos\n✅ Multi-datasource\n✅ Especialista em viz\n\n**JUNTOS:** Zabbix coleta, Grafana visualiza = ❤️ COMBO PERFEITO!`;
+      }
+    }
+    
+    if (q.includes('como') && q.includes('começar')) {
+      return `🚀 **COMO COMEÇAR:**\n\n**Passo 1:** Instale Zabbix Server\n**Passo 2:** Instale Zabbix Agent nos hosts\n**Passo 3:** Configure primeiro host\n**Passo 4:** Aplique template\n**Passo 5:** Crie dashboards no Grafana\n\n**Tempo:** 1-2 horas para setup básico\n\n**Quer tutorial passo a passo?** Digite: **tutorial instalação**`;
+    }
+    
+    // Se não encontrou resposta específica
+    return `🤔 Interessante! Sobre esse tópico específico, posso te ajudar de outras formas:\n\n• Digite **menu** para ver super poderes\n• Digite **tutorial [tópico]** para aprender\n• Digite **exemplo [conceito]** para ver prática\n\n${apiMode === 'embedded' ? '💡 **Quer respostas mais personalizadas?** Configure API key gratuita no ⚙️!' : ''}\n\nOu reformule sua pergunta! 😊`;
   };
 
-  // SUPER PODER 5: Gerador de Scripts
-  const generateScript = async (description) => {
-    const prompt = `Gere um script FUNCIONAL baseado nesta descrição:
-
-"${description}"
-
-Forneça:
-1. 💻 Código completo e comentado
-2. 📝 Explicação do que faz
-3. 🚀 Como usar
-4. ⚙️ Requisitos
-5. 🔧 Customizações possíveis
-
-Use linguagem apropriada (bash, python, etc)`;
-
-    return await callClaudeAI(prompt, 'Geração de script');
+  // Gerador de scripts
+  const generateScript = (description) => {
+    const desc = description.toLowerCase();
+    
+    if (desc.includes('docker')) {
+      return `🛠️ **SCRIPT: MONITOR DOCKER**\n\n${scriptTemplates["monitor docker"]}\n\n**Como usar:**\n1. Salve como monitor_docker.sh\n2. chmod +x monitor_docker.sh\n3. Execute: ./monitor_docker.sh\n4. Agende no cron se quiser!\n\n**Integração Zabbix:**\nUserParameter=docker.check,/path/to/monitor_docker.sh`;
+    }
+    
+    if (desc.includes('nginx')) {
+      return `🛠️ **SCRIPT: CHECK NGINX**\n\n${scriptTemplates["check nginx"]}\n\n**Como usar:**\n1. Salve como check_nginx.sh\n2. chmod +x check_nginx.sh\n3. Execute: ./check_nginx.sh\n\n**Auto-healing!** Script reinicia automaticamente se serviço cair!`;
+    }
+    
+    if (desc.includes('disco') || desc.includes('disk')) {
+      return `🛠️ **SCRIPT: ALERTA DISCO**\n\n${scriptTemplates["disk space alert"]}\n\n**Customização:**\n• Mude THRESHOLD=80 para seu limite\n• Adicione notificação (email, Slack)\n• Agende no cron: */5 * * * *\n\n**Integração Zabbix:**\nUserParameter=disk.check,/path/to/disk_alert.sh`;
+    }
+    
+    return `🛠️ **TEMPLATE DE SCRIPT PERSONALIZADO**\n\n\`\`\`bash\n#!/bin/bash\n# ${description}\n# Autor: ${userName}\n\n# Seu código aqui\necho "Script para: ${description}"\n\n# Adicione lógica\n# Adicione alertas\n# Adicione logs\n\`\`\`\n\n**Próximos passos:**\n1. Implemente lógica específica\n2. Teste em ambiente dev\n3. Adicione error handling\n4. Documente!\n\n**Precisa de ajuda?** Seja mais específico sobre o que quer fazer!`;
   };
 
-  // SUPER PODER 6: Troubleshooting Inteligente
-  const troubleshoot = async (problem) => {
-    const prompt = `TROUBLESHOOT este problema:
-
-"${problem}"
-
-Forneça:
-1. 🔍 Diagnóstico provável
-2. ✅ Como verificar (comandos)
-3. 🛠️ Soluções (passo a passo)
-4. 🔄 Como testar se resolveu
-5. 🚨 Quando escalar
-
-Seja MUITO prático e direto!`;
-
-    return await callClaudeAI(prompt, 'Troubleshooting');
-  };
-
-  // SUPER PODER 7: Modo Mentor Socrático
-  const socraticMentor = async (studentAnswer, topic) => {
-    const prompt = `MODO MENTOR SOCRÁTICO sobre "${topic}":
-
-Aluno respondeu: "${studentAnswer}"
-
-Faça 2-3 perguntas inteligentes que:
-1. Façam o aluno PENSAR mais profundamente
-2. Guiem para descobrir a resposta
-3. Não dê a resposta direta!
-
-Use o método socrático clássico!`;
-
-    return await callClaudeAI(prompt, 'Modo mentor');
-  };
-
-  // SUPER PODER 8: Arquiteto de Projetos
-  const architectProject = async (requirements) => {
-    const prompt = `Como ARQUITETO, desenhe uma infraestrutura de monitoramento baseada em:
-
-"${requirements}"
-
-Forneça:
-1. 🏗️ Arquitetura proposta (descrição)
-2. 🔧 Componentes necessários
-3. 📊 Templates/Dashboards recomendados
-4. 🔄 Fluxo de dados
-5. 💰 Estimativa de recursos
-6. 📈 Escalabilidade
-
-Seja detalhado e profissional!`;
-
-    return await callClaudeAI(prompt, 'Arquitetura de projeto');
+  // Analisador de código
+  const analyzeCode = (code) => {
+    let analysis = '🔍 **ANÁLISE DE CÓDIGO:**\n\n';
+    
+    // Análise básica por padrões
+    if (code.includes('sudo rm -rf')) {
+      analysis += '🚨 **PERIGO:** Comando destrutivo detectado!\n';
+    }
+    
+    if (!code.includes('#!/bin/bash') && !code.includes('#!/usr/bin/env')) {
+      analysis += '⚠️ **Falta shebang:** Adicione #!/bin/bash no início\n';
+    }
+    
+    if (!code.includes('set -e') && !code.includes('set -eu')) {
+      analysis += '💡 **Sugestão:** Adicione `set -e` para parar em erros\n';
+    }
+    
+    if (code.split('\n').filter(l => l.trim().startsWith('#')).length < 3) {
+      analysis += '📝 **Documentação:** Adicione mais comentários\n';
+    }
+    
+    if (code.includes('password') || code.includes('apikey')) {
+      analysis += '🔒 **SEGURANÇA:** Não hardcode senhas! Use variáveis de ambiente\n';
+    }
+    
+    analysis += '\n✅ **Boas práticas:**\n';
+    analysis += '• Use variáveis para valores repetidos\n';
+    analysis += '• Adicione validação de entrada\n';
+    analysis += '• Implemente logging\n';
+    analysis += '• Teste em ambiente dev primeiro\n';
+    
+    return analysis;
   };
 
   const profileQuestions = {
     learning_style: {
-      question: `${userName}, vou criar uma experiência PERFEITA! 🎯
-
-**Como você aprende MELHOR?**
-
-A) 📊 Visual (gráficos, diagramas)
-B) 🎧 Auditivo (explicações)
-C) 📝 Leitura (textos, docs)
-D) 🛠️ Prático (mão na massa)`,
+      question: `**Como você aprende melhor?**\n\nA) 📊 Visual (gráficos)\nB) 🎧 Auditivo (explicações)\nC) 📝 Leitura (textos)\nD) 🛠️ Prático (mão na massa)`,
       profiles: { A: 'visual', B: 'auditivo', C: 'reading', D: 'kinesthetic' }
     },
     personality: {
-      question: `**Seu estilo de aprender:**
-
-A) 🗺️ Explorador (tentativa e erro)
-B) 📋 Estrategista (plano estruturado)
-C) ⚡ Pragmático (direto ao ponto)
-D) 👥 Social (trocar ideias)`,
+      question: `**Seu estilo:**\n\nA) 🗺️ Explorador\nB) 📋 Estrategista\nC) ⚡ Pragmático\nD) 👥 Social`,
       profiles: { A: 'explorador', B: 'estrategista', C: 'pragmatico', D: 'social' }
     },
     motivation: {
-      question: `**O que te MOTIVA?**
-
-A) 🏆 Conquistar objetivos
-B) 🎓 Dominar profundamente
-C) 🔓 Liberdade criativa
-D) 🌟 Ajudar outros`,
+      question: `**O que te motiva?**\n\nA) 🏆 Conquistar\nB) 🎓 Dominar\nC) 🔓 Criar\nD) 🌟 Ajudar`,
       profiles: { A: 'achievement', B: 'mastery', C: 'autonomy', D: 'purpose' }
     }
   };
 
   const smartRespond = async (userMsg) => {
     const msg = userMsg.toLowerCase().trim();
-    setLastInteractionTime(Date.now());
     setSessionData(prev => ({ ...prev, interactions: prev.interactions + 1 }));
-
-    // SUPER MODO ATIVO
-    if (superMode === 'ai-chat') {
-      if (msg === 'sair' || msg === 'voltar') {
-        setSuperMode(null);
-        return '👍 Saindo do modo IA Chat! Voltando ao menu principal.\n\nDigite **menu** para ver opções! 🎯';
-      }
-      
-      const aiResponse = await callClaudeAI(userMsg, `Conversa livre sobre Zabbix/Grafana`);
-      addXP(10, 'IA Chat');
-      return `🤖 **IA Responde:**\n\n${aiResponse}\n\n💬 Continue perguntando ou digite **sair** para voltar!`;
-    }
-
-    if (superMode === 'code-analyzer') {
-      if (msg === 'sair' || msg === 'voltar') {
-        setSuperMode(null);
-        return '👍 Saindo do Analisador! Digite **menu** para opções! 🎯';
-      }
-      
-      if (msg.length < 20) {
-        return '📋 Cole aqui sua configuração ou código do Zabbix/Grafana que vou analisar!\n\nOu digite **sair** para voltar.';
-      }
-      
-      const analysis = await analyzeCode(userMsg, 'configuração');
-      addXP(30, 'Código analisado');
-      return `🔍 **ANÁLISE COMPLETA:**\n\n${analysis}\n\n📋 Cole outro código ou **sair**!`;
-    }
-
-    if (superMode === 'script-gen') {
-      if (msg === 'sair' || msg === 'voltar') {
-        setSuperMode(null);
-        return '👍 Saindo do Gerador! Digite **menu**! 🎯';
-      }
-      
-      if (msg.length < 10) {
-        return '💡 Descreva o que você precisa!\n\nExemplo: "Script para monitorar containers Docker e alertar quando CPU > 80%"\n\nOu **sair** para voltar.';
-      }
-      
-      const script = await generateScript(userMsg);
-      addXP(50, 'Script gerado');
-      return `🛠️ **SCRIPT GERADO:**\n\n${script}\n\n💻 Descreva outro ou **sair**!`;
-    }
-
-    if (superMode === 'troubleshoot') {
-      if (msg === 'sair' || msg === 'voltar') {
-        setSuperMode(null);
-        return '👍 Saindo do Troubleshooter! Digite **menu**! 🎯';
-      }
-      
-      const solution = await troubleshoot(userMsg);
-      addXP(40, 'Problema resolvido');
-      return `🐛 **SOLUÇÃO:**\n\n${solution}\n\n🔧 Outro problema? Ou **sair**!`;
-    }
-
-    if (superMode === 'simulator') {
-      if (msg === 'sair' || msg === 'voltar') {
-        setSuperMode(null);
-        return '👍 Saindo do Simulador! Digite **menu**! 🎯';
-      }
-      
-      if (msg === 'fácil' || msg === 'facil' || msg === '1') {
-        const scenario = await createScenario('easy');
-        return `🎮 **CENÁRIO:**\n\n${scenario}\n\n💭 Responda ou digite **nova** para outro cenário!`;
-      } else if (msg === 'médio' || msg === 'medio' || msg === '2') {
-        const scenario = await createScenario('medium');
-        return `🎮 **CENÁRIO:**\n\n${scenario}\n\n💭 Responda ou **nova** para outro!`;
-      } else if (msg === 'difícil' || msg === 'dificil' || msg === '3') {
-        const scenario = await createScenario('hard');
-        return `🎮 **CENÁRIO:**\n\n${scenario}\n\n💭 Responda ou **nova**!`;
-      } else if (msg === 'nova' || msg === 'novo') {
-        return '🎲 Escolha dificuldade:\n**fácil** | **médio** | **difícil**';
-      }
-      
-      const feedback = await socraticMentor(userMsg, 'cenário de monitoramento');
-      addXP(35, 'Simulação');
-      return `🧙 **FEEDBACK:**\n\n${feedback}\n\n**nova** cenário ou **sair**!`;
-    }
-
-    if (superMode === 'architect') {
-      if (msg === 'sair' || msg === 'voltar') {
-        setSuperMode(null);
-        return '👍 Saindo do Arquiteto! Digite **menu**! 🎯';
-      }
-      
-      if (msg.length < 20) {
-        return '🏗️ Descreva sua infraestrutura!\n\nExemplo: "Preciso monitorar 50 servidores Linux, 20 switches, 10 aplicações web e 5 bancos MySQL"\n\n**sair** para voltar.';
-      }
-      
-      const architecture = await architectProject(userMsg);
-      addXP(60, 'Arquitetura criada');
-      return `🏗️ **ARQUITETURA:**\n\n${architecture}\n\nOutra infraestrutura ou **sair**!`;
-    }
-
-    if (superMode === 'tutorial-gen') {
-      if (msg === 'sair' || msg === 'voltar') {
-        setSuperMode(null);
-        return '👍 Saindo do Gerador! Digite **menu**! 🎯';
-      }
-      
-      if (msg.length < 10) {
-        return '📚 Sobre o que quer aprender?\n\nExemplo: "Monitoramento de containers Docker com Zabbix"\n\n**sair** para voltar.';
-      }
-      
-      const tutorial = await generateTutorial(userMsg);
-      addXP(45, 'Tutorial criado');
-      return `📖 **TUTORIAL:**\n\n${tutorial}\n\nOutro tópico ou **sair**!`;
-    }
 
     // Estados de perfilamento
     if (conversationState === 'greeting') {
@@ -439,7 +393,7 @@ D) 🌟 Ajudar outros`,
       if (['A', 'B', 'C', 'D'].includes(answer)) {
         setLearningProfile(prev => ({ ...prev, style: profileQuestions.learning_style.profiles[answer] }));
         setConversationState('profiling_personality');
-        addXP(15, 'Perfil mapeado');
+        addXP(15, 'Perfil');
         return profileQuestions.personality.question;
       }
       return 'Digite **A**, **B**, **C** ou **D**! 😊';
@@ -450,7 +404,7 @@ D) 🌟 Ajudar outros`,
       if (['A', 'B', 'C', 'D'].includes(answer)) {
         setLearningProfile(prev => ({ ...prev, personality: profileQuestions.personality.profiles[answer] }));
         setConversationState('profiling_motivation');
-        addXP(15, 'Personalidade identificada');
+        addXP(15, 'Personalidade');
         return profileQuestions.motivation.question;
       }
       return 'Digite **A**, **B**, **C** ou **D**! 😊';
@@ -462,7 +416,7 @@ D) 🌟 Ajudar outros`,
         setLearningProfile(prev => ({ ...prev, motivationType: profileQuestions.motivation.profiles[answer] }));
         setConversationState('choosing_level');
         addXP(25, 'Perfil completo');
-        return `🎉 **PERFIL COMPLETO!**\n\nQual seu nível técnico?\n\n🌱 **1** - Iniciante\n🌿 **2** - Básico\n🌳 **3** - Intermediário\n🚀 **4** - Avançado`;
+        return `🎉 **PERFIL COMPLETO!**\n\nSeu nível?\n\n🌱 **1** - Iniciante\n🌿 **2** - Básico\n🌳 **3** - Intermediário\n🚀 **4** - Avançado`;
       }
       return 'Digite **A**, **B**, **C** ou **D**! 😊';
     }
@@ -472,121 +426,112 @@ D) 🌟 Ajudar outros`,
         const levels = { '1': 'iniciante', '2': 'basico', '3': 'intermediario', '4': 'avancado' };
         setUserLevel(levels[msg]);
         setConversationState('super_menu');
-        addXP(30, 'Pronto para começar');
-        return `✨ **PERFIL CONFIGURADO, ${userName}!**\n\nAgora você tem acesso aos SUPER PODERES! 🦸‍♂️\n\nDigite **menu** para ver todas as opções!`;
+        addXP(30, 'Pronto!');
+        return `✨ **CONFIGURADO, ${userName}!**\n\nDigite **menu** para ver opções!`;
       }
       return 'Digite **1**, **2**, **3** ou **4**! 😊';
     }
 
-    // Menu principal
-    if (msg === 'menu' || msg === 'ajuda' || msg === 'help') {
-      return `🦸‍♂️ **SUPER PODERES DISPONÍVEIS:**
-
-**1️⃣ IA CHAT** 🤖
-   → Conversa livre sobre QUALQUER dúvida
-   → Comando: **ia** ou **chat**
-
-**2️⃣ ANALISADOR** 🔍
-   → Cola config/código para análise
-   → Comando: **analisar** ou **analise**
-
-**3️⃣ GERADOR DE SCRIPTS** 🛠️
-   → Cria scripts personalizados
-   → Comando: **gerar** ou **script**
-
-**4️⃣ TROUBLESHOOTER** 🐛
-   → Resolve problemas reais
-   → Comando: **problema** ou **bug**
-
-**5️⃣ SIMULADOR** 🎮
-   → Cenários reais para treinar
-   → Comando: **simular** ou **treino**
-
-**6️⃣ ARQUITETO** 🏗️
-   → Desenha infraestruturas
-   → Comando: **arquitetar** ou **infra**
-
-**7️⃣ TUTORIAL GERADOR** 📚
-   → Cria tutoriais sob demanda
-   → Comando: **tutorial** ou **aprender**
-
-**Outros Comandos:**
-• **progresso** - Ver status
-• **perfil** - Ver perfil de aprendizagem
-• **dica** - Dica aleatória
-
-**Digite o comando do super poder que quer usar!** 🚀`;
+    // Super modos
+    if (superMode === 'ai-chat') {
+      if (msg === 'sair' || msg === 'voltar') {
+        setSuperMode(null);
+        return '👍 Voltando! Digite **menu**! 🎯';
+      }
+      
+      const response = await getSmartResponse(userMsg, 'Chat livre');
+      addXP(10, 'Chat');
+      return `${apiMode === 'ai' ? '🤖' : '🧠'} **Resposta:**\n\n${response}\n\n💬 Continue ou **sair**!`;
     }
 
-    // Ativar super poderes
+    if (superMode === 'code-analyzer') {
+      if (msg === 'sair' || msg === 'voltar') {
+        setSuperMode(null);
+        return '👍 Saindo! Digite **menu**! 🎯';
+      }
+      
+      if (msg.length < 20) {
+        return '📋 Cole seu código/config aqui!\n\nOu **sair** para voltar.';
+      }
+      
+      const analysis = analyzeCode(userMsg);
+      addXP(30, 'Análise');
+      return `${analysis}\n\n📋 Outro código ou **sair**!`;
+    }
+
+    if (superMode === 'script-gen') {
+      if (msg === 'sair' || msg === 'voltar') {
+        setSuperMode(null);
+        return '👍 Saindo! Digite **menu**! 🎯';
+      }
+      
+      if (msg.length < 10) {
+        return '💡 Descreva o que precisa!\n\nExemplo: "monitorar docker"\n\n**sair** para voltar.';
+      }
+      
+      const script = generateScript(userMsg);
+      addXP(50, 'Script');
+      return `${script}\n\n💻 Outro ou **sair**!`;
+    }
+
+    if (superMode === 'troubleshoot') {
+      if (msg === 'sair' || msg === 'voltar') {
+        setSuperMode(null);
+        return '👍 Saindo! Digite **menu**! 🎯';
+      }
+      
+      const solution = await getSmartResponse(userMsg, 'Troubleshooting');
+      addXP(40, 'Problema resolvido');
+      return `🐛 **SOLUÇÃO:**\n\n${solution}\n\n🔧 Outro ou **sair**!`;
+    }
+
+    // Menu
+    if (msg === 'menu' || msg === 'ajuda' || msg === 'help') {
+      return `🦸‍♂️ **SUPER PODERES:**\n\n**1️⃣ CHAT ${apiMode === 'ai' ? '🤖' : '🧠'}**\n   Comando: **chat** ou **ia**\n\n**2️⃣ ANALISADOR 🔍**\n   Comando: **analisar**\n\n**3️⃣ GERADOR 🛠️**\n   Comando: **gerar**\n\n**4️⃣ TROUBLESHOOT 🐛**\n   Comando: **problema**\n\n**Outros:**\n• **progresso** - Ver status\n• **config** - Configurar API\n\n${apiMode === 'embedded' ? '💡 Configure API key (gratuita!) para respostas IA reais!' : '✅ IA ativada!'}`;
+    }
+
+    // Ativar modos
     if (msg === 'ia' || msg === 'chat') {
       setSuperMode('ai-chat');
-      return `🤖 **MODO IA CHAT ATIVADO!**\n\nPergunte QUALQUER COISA sobre Zabbix, Grafana, monitoramento, etc!\n\nA IA vai responder com inteligência contextual! 🧠\n\n💬 Digite sua pergunta! (ou **sair** para voltar)`;
+      return `${apiMode === 'ai' ? '🤖 **IA REAL' : '🧠 **SISTEMA INTELIGENTE'} ATIVADO!**\n\nPergunte sobre Zabbix, Grafana, etc!\n\n💬 Sua pergunta! (**sair** para voltar)`;
     }
 
     if (msg === 'analisar' || msg === 'analise') {
       setSuperMode('code-analyzer');
-      return `🔍 **ANALISADOR ATIVADO!**\n\nCole aqui:\n• Configurações do Zabbix\n• Templates\n• Scripts\n• Queries do Grafana\n\nVou analisar e dar feedback PRO! 💪\n\n📋 Cole o código! (ou **sair**)`;
+      return `🔍 **ANALISADOR ATIVADO!**\n\nCole código/config do Zabbix/Grafana!\n\n📋 Cole aqui! (**sair**)`;
     }
 
     if (msg === 'gerar' || msg === 'script') {
       setSuperMode('script-gen');
-      return `🛠️ **GERADOR DE SCRIPTS ATIVADO!**\n\nDescreva o que precisa e eu crio!\n\nExemplo:\n"Script bash para verificar se serviço Nginx está rodando e reiniciar se necessário"\n\n💻 O que quer gerar? (ou **sair**)`;
+      return `🛠️ **GERADOR ATIVADO!**\n\nDescreva o que precisa!\n\nExemplo: "monitorar nginx"\n\n💻 Descreva! (**sair**)`;
     }
 
     if (msg === 'problema' || msg === 'bug' || msg === 'troubleshoot') {
       setSuperMode('troubleshoot');
-      return `🐛 **TROUBLESHOOTER ATIVADO!**\n\nDescreva seu problema:\n• Sintomas\n• Logs (se tiver)\n• O que já tentou\n\nVou diagnosticar e resolver! 🔧\n\n📝 Qual o problema? (ou **sair**)`;
+      return `🐛 **TROUBLESHOOTER ATIVADO!**\n\nDescreva seu problema!\n\n📝 Qual problema? (**sair**)`;
     }
 
-    if (msg === 'simular' || msg === 'treino' || msg === 'cenario') {
-      setSuperMode('simulator');
-      return `🎮 **SIMULADOR ATIVADO!**\n\nVou criar cenários REAIS para você treinar!\n\nEscolha dificuldade:\n• **fácil** - Problemas básicos\n• **médio** - Desafios intermediários\n• **difícil** - Cenários avançados\n\n🎲 Qual dificuldade? (ou **sair**)`;
+    if (msg === 'config' || msg === 'configurar' || msg === 'api') {
+      setShowApiConfig(true);
+      return `⚙️ **CONFIGURAÇÃO DE API**\n\nAbri o painel de configuração! Configure sua API key Groq gratuita para respostas IA reais!\n\n**Como obter:**\n1. Acesse: https://console.groq.com\n2. Crie conta grátis\n3. Gere API key\n4. Cole aqui!\n\nDigite **fechar** para voltar.`;
     }
 
-    if (msg === 'arquitetar' || msg === 'infra' || msg === 'arquiteto') {
-      setSuperMode('architect');
-      return `🏗️ **ARQUITETO ATIVADO!**\n\nDescreva sua necessidade:\n• Quantos servidores\n• Tipos de dispositivos\n• Aplicações\n• Requisitos especiais\n\nVou desenhar a arquitetura completa! 📐\n\n📝 Descreva a infra! (ou **sair**)`;
+    if (msg === 'fechar') {
+      setShowApiConfig(false);
+      return 'Configuração fechada! Digite **menu**! 🎯';
     }
 
-    if (msg === 'tutorial' || msg === 'aprender') {
-      setSuperMode('tutorial-gen');
-      return `📚 **GERADOR DE TUTORIAL ATIVADO!**\n\nSobre qual tópico quer um tutorial completo?\n\nExemplo:\n"Integração Zabbix + Grafana"\n"Monitoramento de MySQL"\n"Low-Level Discovery"\n\n📖 Qual tópico? (ou **sair**)`;
+    if (msg === 'progresso') {
+      return `📊 **STATUS:**\n\n🏆 XP: ${xp}\n🔥 Streak: ${streak}\n💬 Interações: ${sessionData.interactions}\n${apiMode === 'ai' ? `🤖 IA Calls: ${sessionData.aiCallsUsed}` : '🧠 Modo: Embutido'}\n\nContinue! 💪`;
     }
 
-    if (msg === 'progresso' || msg === 'status') {
-      const sessionTime = Math.floor((Date.now() - sessionData.startTime) / 60000);
-      return `📊 **STATUS COMPLETO:**\n\n🏆 **XP:** ${xp}\n🔥 **Streak:** ${streak} dias\n⏱️ **Tempo:** ${sessionTime}min\n💬 **Interações:** ${sessionData.interactions}\n🤖 **IA Calls:** ${sessionData.aiCallsUsed}\n\n🧠 **Estado:**\n• Foco: ${learningProfile.focusLevel}%\n• Energia: ${learningProfile.energy}%\n\nContinue assim! 💪`;
-    }
-
-    if (msg === 'perfil') {
-      return `🧠 **SEU PERFIL:**\n\n👤 ${userName}\n📚 Estilo: ${learningProfile.style}\n🎭 Personalidade: ${learningProfile.personality}\n💪 Motivação: ${learningProfile.motivationType}\n⭐ Nível: ${userLevel}\n\nDigite **menu** para ver poderes! 🦸‍♂️`;
-    }
-
-    if (msg === 'dica') {
-      const tips = [
-        '💡 Use IA Chat para dúvidas rápidas!',
-        '💡 Analisador detecta problemas que você não vê!',
-        '💡 Simulador te prepara para cenários reais!',
-        '💡 Gerador de scripts economiza HORAS!',
-        '💡 Arquiteto ajuda a planejar antes de implementar!',
-        '💡 Troubleshooter é como ter um senior ao seu lado!',
-        '💡 Quanto mais usar, mais a IA aprende sobre você!'
-      ];
-      return tips[Math.floor(Math.random() * tips.length)];
-    }
-
-    return `😅 Não entendi!\n\nDigite **menu** para ver todos os super poderes! 🦸‍♂️`;
+    return `😅 Não entendi!\n\nDigite **menu** para opções! 🦸‍♂️`;
   };
 
   const handleSendMessage = async () => {
     if (!input.trim() || isAiThinking) return;
 
-    const userMessage = {
-      type: 'user',
-      content: input,
-      timestamp: new Date()
-    };
+    const userMessage = { type: 'user', content: input, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
 
@@ -594,42 +539,37 @@ D) 🌟 Ajudar outros`,
     addBotMessage(response, 100);
   };
 
+  const saveApiKey = () => {
+    if (apiKey.trim()) {
+      localStorage.setItem('groq_api_key', apiKey);
+      setApiMode('ai');
+      setShowApiConfig(false);
+      addSystemMessage('✅ API Key salva! Modo IA ativado! 🤖', 'success');
+    }
+  };
+
+  const removeApiKey = () => {
+    localStorage.removeItem('groq_api_key');
+    setApiKey('');
+    setApiMode('embedded');
+    setShowApiConfig(false);
+    addSystemMessage('🧠 Voltando para modo embutido!', 'info');
+  };
+
   const handleReset = () => {
     setMessages([]);
-    setUserLevel(null);
-    setCurrentTool(null);
     setConversationState('greeting');
     setXp(0);
-    setStreak(1);
     setUserName('');
     setSuperMode(null);
     setConversationHistory([]);
-    setLearningProfile({
-      style: null,
-      personality: null,
-      focusLevel: 100,
-      energy: 100,
-      frustrationLevel: 0,
-      successStreak: 0,
-      preferredPace: 'medium',
-      motivationType: null,
-    });
-    setSessionData({
-      startTime: Date.now(),
-      interactions: 0,
-      correctAnswers: 0,
-      incorrectAnswers: 0,
-      pomodoroCount: 0,
-      lastBreakTime: Date.now(),
-      aiCallsUsed: 0,
-    });
     addBotMessage(`🔄 **RESET!**\n\nQual seu nome? 😊`, 0);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-purple-900 to-fuchsia-900 p-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header Super */}
+        {/* Header */}
         <div className="bg-slate-950/95 backdrop-blur-xl rounded-t-3xl p-6 border-b-2 border-purple-500/60 shadow-2xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -643,28 +583,15 @@ D) 🌟 Ajudar outros`,
                 <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-red-400">
                   ZabbiBot 3.0
                 </h1>
-                <p className="text-purple-300 font-bold">🦸‍♂️ Super IA Tutor</p>
-                {userName && (
-                  <p className="text-sm text-blue-300 flex items-center gap-2 mt-1">
-                    {userName}
-                    {superMode && (
-                      <span className="text-xs bg-gradient-to-r from-purple-600 to-pink-600 px-2 py-1 rounded-full animate-pulse">
-                        {superMode === 'ai-chat' ? '🤖 IA Chat' :
-                         superMode === 'code-analyzer' ? '🔍 Analisador' :
-                         superMode === 'script-gen' ? '🛠️ Gerador' :
-                         superMode === 'troubleshoot' ? '🐛 Troubleshoot' :
-                         superMode === 'simulator' ? '🎮 Simulador' :
-                         superMode === 'architect' ? '🏗️ Arquiteto' :
-                         superMode === 'tutorial-gen' ? '📚 Tutorial' : ''}
-                      </span>
-                    )}
-                  </p>
-                )}
+                <p className="text-purple-300 font-bold flex items-center gap-2">
+                  {apiMode === 'ai' ? '🤖 Modo IA' : '🧠 Modo Embutido'}
+                  {userName && <span className="text-sm">• {userName}</span>}
+                </p>
               </div>
             </div>
             
             <div className="flex items-center gap-3">
-              <div className="text-center bg-gradient-to-br from-yellow-900/50 to-orange-900/50 px-4 py-2 rounded-xl border border-yellow-500/50 backdrop-blur">
+              <div className="text-center bg-gradient-to-br from-yellow-900/50 to-orange-900/50 px-4 py-2 rounded-xl border border-yellow-500/50">
                 <div className="flex items-center gap-2 text-yellow-300">
                   <Trophy className="w-5 h-5" />
                   <span className="font-black text-lg">{xp}</span>
@@ -672,42 +599,82 @@ D) 🌟 Ajudar outros`,
                 <p className="text-xs text-gray-400">XP</p>
               </div>
               
-              <div className="text-center bg-gradient-to-br from-purple-900/50 to-pink-900/50 px-4 py-2 rounded-xl border border-purple-500/50 backdrop-blur">
-                <div className="flex items-center gap-2 text-purple-300">
-                  <Zap className="w-5 h-5" />
-                  <span className="font-black text-lg">{sessionData.aiCallsUsed}</span>
-                </div>
-                <p className="text-xs text-gray-400">IA Calls</p>
-              </div>
+              <button
+                onClick={() => setShowApiConfig(!showApiConfig)}
+                className="p-3 bg-blue-600/30 hover:bg-blue-600/50 rounded-xl transition-all border border-blue-500/50"
+                title="Configurações"
+              >
+                <Settings className="w-5 h-5 text-blue-300" />
+              </button>
               
               <button
                 onClick={handleReset}
-                className="p-3 bg-red-600/30 hover:bg-red-600/50 rounded-xl transition-all border border-red-500/50 group backdrop-blur"
+                className="p-3 bg-red-600/30 hover:bg-red-600/50 rounded-xl transition-all border border-red-500/50"
               >
-                <RotateCcw className="w-5 h-5 text-red-300 group-hover:rotate-180 transition-transform duration-500" />
+                <RotateCcw className="w-5 h-5 text-red-300" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Chat */}
-        <div className="bg-slate-950/80 backdrop-blur-md h-[550px] overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center py-20 text-gray-500">
-              <Sparkles className="w-16 h-16 mx-auto mb-4 opacity-50 animate-pulse" />
-              <p>Inicializando Super IA...</p>
+        {/* Config Panel */}
+        {showApiConfig && (
+          <div className="bg-slate-900/95 backdrop-blur-xl p-6 border-b-2 border-blue-500/60">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Key className="w-6 h-6 text-blue-400" />
+              Configuração API (Opcional)
+            </h3>
+            <p className="text-gray-300 text-sm mb-4">
+              Configure uma API key Groq <strong>GRATUITA</strong> para respostas IA reais!<br/>
+              Sem API: Sistema embutido funciona perfeitamente! ✅
+            </p>
+            <div className="flex gap-3 mb-4">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Cole sua API key Groq aqui..."
+                className="flex-1 bg-slate-800 text-white rounded-xl px-4 py-3 border border-slate-700"
+              />
+              <button
+                onClick={saveApiKey}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl flex items-center gap-2"
+              >
+                <CheckCircle className="w-5 h-5" />
+                Salvar
+              </button>
+              {apiMode === 'ai' && (
+                <button
+                  onClick={removeApiKey}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl flex items-center gap-2"
+                >
+                  <XCircle className="w-5 h-5" />
+                  Remover
+                </button>
+              )}
             </div>
-          )}
-          
+            <a 
+              href="https://console.groq.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 text-sm"
+            >
+              🔗 Obter API key gratuita no Groq →
+            </a>
+          </div>
+        )}
+
+        {/* Chat */}
+        <div className="bg-slate-950/80 h-[500px] overflow-y-auto p-6 space-y-4">
           {messages.map((message, index) => (
             <div
               key={index}
               className={`flex ${message.type === 'user' ? 'justify-end' : message.type === 'system' ? 'justify-center' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[85%] rounded-2xl p-4 shadow-xl backdrop-blur ${
+                className={`max-w-[85%] rounded-2xl p-4 shadow-xl ${
                   message.type === 'user'
-                    ? 'bg-gradient-to-r from-blue-600/90 to-purple-600/90 text-white border border-purple-500/30'
+                    ? 'bg-gradient-to-r from-blue-600/90 to-purple-600/90 text-white'
                     : message.type === 'system'
                     ? message.systemType === 'success' 
                       ? 'bg-green-900/70 text-green-200 border border-green-500/50'
@@ -715,18 +682,8 @@ D) 🌟 Ajudar outros`,
                     : 'bg-slate-900/90 text-gray-100 border border-slate-700/50'
                 }`}
               >
-                <div className="prose prose-invert prose-sm max-w-none">
-                  {message.content.split('\n').map((line, i) => {
-                    if (line.startsWith('```')) return null;
-                    if (line.trim().startsWith('sudo ') || line.trim().startsWith('wget ') || line.trim().startsWith('#')) {
-                      return (
-                        <code key={i} className="block bg-black/70 p-2 rounded my-2 text-green-400 font-mono text-xs border border-green-800/40">
-                          {line}
-                        </code>
-                      );
-                    }
-                    return <p key={i} className="mb-2 last:mb-0 whitespace-pre-wrap">{line}</p>;
-                  })}
+                <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+                  {message.content}
                 </div>
                 <p className="text-xs text-gray-500 mt-2 opacity-70">
                   {message.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -737,12 +694,12 @@ D) 🌟 Ajudar outros`,
           
           {isAiThinking && (
             <div className="flex justify-start">
-              <div className="bg-gradient-to-r from-purple-900/80 to-pink-900/80 rounded-2xl p-4 border border-purple-500/50 backdrop-blur">
+              <div className="bg-purple-900/80 rounded-2xl p-4 border border-purple-500/50">
                 <div className="flex items-center gap-3">
                   <div className="animate-spin">
                     <Brain className="w-5 h-5 text-purple-300" />
                   </div>
-                  <p className="text-purple-200">IA pensando...</p>
+                  <p className="text-purple-200">Pensando...</p>
                 </div>
               </div>
             </div>
@@ -751,47 +708,43 @@ D) 🌟 Ajudar outros`,
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Super */}
-        <div className="bg-slate-950/95 backdrop-blur-xl rounded-b-3xl p-5 border-t-2 border-purple-500/60 shadow-2xl">
+        {/* Input */}
+        <div className="bg-slate-950/95 rounded-b-3xl p-5 border-t-2 border-purple-500/60">
           <div className="flex gap-3">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder={isAiThinking ? "Aguarde a IA..." : "Digite sua mensagem..."}
+              placeholder="Digite sua mensagem..."
               disabled={isAiThinking}
-              className="flex-1 bg-slate-900/90 text-white rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-800/50 placeholder-gray-500 disabled:opacity-50"
+              className="flex-1 bg-slate-900/90 text-white rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-800/50"
             />
             <button
               onClick={handleSendMessage}
               disabled={isAiThinking}
-              className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-700 hover:via-pink-700 hover:to-red-700 text-white rounded-2xl px-8 py-4 flex items-center gap-2 transition-all shadow-lg hover:shadow-purple-500/50 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl px-8 py-4 flex items-center gap-2 font-bold disabled:opacity-50"
             >
               <Send className="w-5 h-5" />
               Enviar
             </button>
           </div>
           
-          {/* Super Actions */}
           <div className="flex gap-2 mt-3 flex-wrap">
-            <button onClick={() => setInput('menu')} className="text-xs bg-gradient-to-r from-purple-800/50 to-pink-800/50 hover:from-purple-700/50 hover:to-pink-700/50 text-purple-200 px-3 py-2 rounded-lg transition-all border border-purple-600/50 flex items-center gap-1">
-              <Rocket className="w-3 h-3" /> Menu
+            <button onClick={() => setInput('menu')} className="text-xs bg-slate-800/60 hover:bg-slate-700 text-gray-300 px-3 py-2 rounded-lg border border-slate-700/50">
+              <Rocket className="w-3 h-3 inline mr-1" /> Menu
             </button>
-            <button onClick={() => setInput('ia')} className="text-xs bg-gradient-to-r from-blue-800/50 to-cyan-800/50 hover:from-blue-700/50 hover:to-cyan-700/50 text-blue-200 px-3 py-2 rounded-lg transition-all border border-blue-600/50 flex items-center gap-1">
-              <MessageSquare className="w-3 h-3" /> IA Chat
+            <button onClick={() => setInput('chat')} className="text-xs bg-slate-800/60 hover:bg-slate-700 text-gray-300 px-3 py-2 rounded-lg border border-slate-700/50">
+              <MessageSquare className="w-3 h-3 inline mr-1" /> Chat
             </button>
-            <button onClick={() => setInput('analisar')} className="text-xs bg-gradient-to-r from-green-800/50 to-emerald-800/50 hover:from-green-700/50 hover:to-emerald-700/50 text-green-200 px-3 py-2 rounded-lg transition-all border border-green-600/50 flex items-center gap-1">
-              <Search className="w-3 h-3" /> Analisar
+            <button onClick={() => setInput('analisar')} className="text-xs bg-slate-800/60 hover:bg-slate-700 text-gray-300 px-3 py-2 rounded-lg border border-slate-700/50">
+              <Search className="w-3 h-3 inline mr-1" /> Analisar
             </button>
-            <button onClick={() => setInput('gerar')} className="text-xs bg-gradient-to-r from-orange-800/50 to-red-800/50 hover:from-orange-700/50 hover:to-red-700/50 text-orange-200 px-3 py-2 rounded-lg transition-all border border-orange-600/50 flex items-center gap-1">
-              <Code className="w-3 h-3" /> Gerar
+            <button onClick={() => setInput('gerar')} className="text-xs bg-slate-800/60 hover:bg-slate-700 text-gray-300 px-3 py-2 rounded-lg border border-slate-700/50">
+              <Code className="w-3 h-3 inline mr-1" /> Gerar
             </button>
-            <button onClick={() => setInput('simular')} className="text-xs bg-gradient-to-r from-pink-800/50 to-rose-800/50 hover:from-pink-700/50 hover:to-rose-700/50 text-pink-200 px-3 py-2 rounded-lg transition-all border border-pink-600/50 flex items-center gap-1">
-              <Activity className="w-3 h-3" /> Simular
-            </button>
-            <button onClick={() => setInput('progresso')} className="text-xs bg-gradient-to-r from-indigo-800/50 to-purple-800/50 hover:from-indigo-700/50 hover:to-purple-700/50 text-indigo-200 px-3 py-2 rounded-lg transition-all border border-indigo-600/50 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" /> Status
+            <button onClick={() => setInput('progresso')} className="text-xs bg-slate-800/60 hover:bg-slate-700 text-gray-300 px-3 py-2 rounded-lg border border-slate-700/50">
+              <TrendingUp className="w-3 h-3 inline mr-1" /> Status
             </button>
           </div>
         </div>
